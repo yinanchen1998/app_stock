@@ -98,10 +98,10 @@ function App() {
   const [period, setPeriod] = useState('2y');  // 回测周期: 6m, 1y, 2y, 3y
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [showApiDialog, setShowApiDialog] = useState(true);
+  const [showApiDialog, setShowApiDialog] = useState(false);
   
   // 手机认证相关状态
-  const [showPhoneLogin, setShowPhoneLogin] = useState(false);
+  const [showPhoneLogin, setShowPhoneLogin] = useState(true);
   const [phoneAuthToken, setPhoneAuthToken] = useState<string | null>(localStorage.getItem('auth_token'));
   const [userInfo, setUserInfo] = useState<any>(JSON.parse(localStorage.getItem('user_info') || 'null'));
   const [hasLongBridgeCredentials, setHasLongBridgeCredentials] = useState(false);
@@ -127,7 +127,11 @@ function App() {
   // 检查用户登录状态和LongBridge凭证
   useEffect(() => {
     const checkUserStatus = async () => {
-      if (!phoneAuthToken) return;
+      if (!phoneAuthToken) {
+        // 未登录，显示登录弹窗
+        setShowPhoneLogin(true);
+        return;
+      }
       
       try {
         // 检查用户是否有绑定的LongBridge凭证
@@ -140,6 +144,9 @@ function App() {
           if (data.success && data.user) {
             setUserInfo(data.user);
             setHasLongBridgeCredentials(!!data.user.has_longbridge);
+            
+            // 已登录，关闭登录弹窗
+            setShowPhoneLogin(false);
             
             // 如果有LongBridge凭证，自动获取session
             if (data.user.has_longbridge && !isAuthenticated) {
@@ -188,9 +195,10 @@ function App() {
     setShowPhoneLogin(false);
     
     // 检查是否有LongBridge凭证
-    if (!user.has_longbridge) {
-      // 显示LongBridge绑定弹窗
-      setShowApiDialog(true);
+    if (user.has_longbridge) {
+      setHasLongBridgeCredentials(true);
+      // 自动连接LongBridge
+      autoConnectLongBridge();
     }
   };
 
@@ -366,6 +374,19 @@ function App() {
 
   // 运行综合分析
   const runAnalysis = async () => {
+    // 检查是否已绑定LongBridge凭证
+    if (!hasLongBridgeCredentials) {
+      setShowApiDialog(true);
+      setError('请先绑定长桥API凭证才能查询股票');
+      return;
+    }
+    
+    if (!sessionId) {
+      setError('服务连接异常，请重新绑定API凭证');
+      setShowApiDialog(true);
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
