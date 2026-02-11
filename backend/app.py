@@ -1101,13 +1101,17 @@ def get_watchlist():
 @app.route('/api/data/historical', methods=['POST'])
 def get_historical():
     """获取历史数据"""
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
+    
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
+    
     data = request.json
-    session_id = data.get('session_id')
     symbol = data.get('symbol')
     period = data.get('period', '3y')
-    
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
     
     try:
         agent = DataAgent(config)
@@ -1224,18 +1228,21 @@ def optimize_portfolio():
 def comprehensive_analysis():
     """综合分析"""
     print(f"[API] /api/analysis/comprehensive called", flush=True)
+    
+    user_id, error = get_current_user_id()
+    if not user_id:
+        print(f"[API] ERROR: {error}", flush=True)
+        return jsonify({"error": error}), 401
+    
+    config, error = create_config_for_user(user_id)
+    if not config:
+        print(f"[API] ERROR: {error}", flush=True)
+        return jsonify({"error": error}), 400
+    
     data = request.json
-    session_id = data.get('session_id')
     symbol = data.get('symbol')
     period = data.get('period', '3y')  # 默认3年
-    print(f"[API] session_id={session_id}, symbol={symbol}, period={period}", flush=True)
-    print(f"[API] current sessions: {list(user_configs.keys())}", flush=True)
-    
-    if session_id not in user_configs:
-        print(f"[API] ERROR: session not found", flush=True)
-        return jsonify({"error": "无效的会话ID"})
-    
-    print(f"[API] Session found, proceeding...", flush=True)
+    print(f"[API] user_id={user_id}, symbol={symbol}, period={period}", flush=True)
     
     try:
         # 1. 获取数据
@@ -1317,15 +1324,20 @@ def comprehensive_analysis():
 def analyze_portfolio():
     """批量分析持仓/关注列表股票"""
     print(f"[API] /api/portfolio/analyze called", flush=True)
+    
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
+    
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
+    
     data = request.json
-    session_id = data.get('session_id')
     symbols = data.get('symbols', [])
     period = data.get('period', '1y')
     
-    print(f"[API] session_id={session_id}, symbols_count={len(symbols)}, period={period}", flush=True)
-    
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
+    print(f"[API] user_id={user_id}, symbols_count={len(symbols)}, period={period}", flush=True)
     
     if not symbols:
         return jsonify({"error": "股票列表为空"})
@@ -1430,16 +1442,21 @@ def analyze_portfolio():
 def get_chart_candles():
     """获取K线图表数据 - 支持日/周/月周期"""
     print(f"[API] /api/chart/candles called", flush=True)
+    
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
+    
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
+    
     data = request.json
-    session_id = data.get('session_id')
     symbol = data.get('symbol')
     timeframe = data.get('timeframe', 'day')  # day, week, month
     years = data.get('years', 3)  # 默认3年
     
-    print(f"[API] session_id={session_id}, symbol={symbol}, timeframe={timeframe}, years={years}", flush=True)
-    
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
+    print(f"[API] user_id={user_id}, symbol={symbol}, timeframe={timeframe}, years={years}", flush=True)
     
     try:
         from longport.openapi import AdjustType, Period

@@ -90,7 +90,7 @@ function App() {
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
   const [accessToken, setAccessToken] = useState('');
-  const [sessionId, setSessionId] = useState('');
+  // session管理已由JWT替代，保留isAuthenticated状态用于UI显示
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -178,10 +178,9 @@ function App() {
       const data = await response.json();
       
       if (data.success) {
-        setSessionId(data.session_id);
         setIsAuthenticated(true);
         setShowApiDialog(false);
-        await fetchPortfolioData(data.session_id);
+        await fetchPortfolioData();
       }
     } catch (e) {
       console.error('自动连接LongBridge失败:', e);
@@ -210,7 +209,6 @@ function App() {
     setUserInfo(null);
     setHasLongBridgeCredentials(false);
     setIsAuthenticated(false);
-    setSessionId('');
   };
 
   // 绑定LongBridge凭证
@@ -253,13 +251,12 @@ function App() {
       const bindData = await bindResponse.json();
       
       if (bindData.success) {
-        setSessionId(validateData.session_id);
         setIsAuthenticated(true);
         setShowApiDialog(false);
         setHasLongBridgeCredentials(true);
         // 保存到localStorage以便页面刷新后使用
         setUserInfo({...userInfo, has_longbridge: true});
-        await fetchPortfolioData(validateData.session_id);
+        await fetchPortfolioData();
       } else {
         setError(bindData.message || '绑定失败');
       }
@@ -292,11 +289,10 @@ function App() {
       const data = await response.json();
       
       if (data.valid) {
-        setSessionId(data.session_id);
         setIsAuthenticated(true);
         setShowApiDialog(false);
         // 认证成功后自动获取持仓和关注列表
-        await fetchPortfolioData(data.session_id);
+        await fetchPortfolioData();
       } else {
         setError(data.error || '认证失败');
       }
@@ -308,14 +304,13 @@ function App() {
   };
 
   // 获取持仓和关注列表数据
-  const fetchPortfolioData = async (sid: string) => {
+  const fetchPortfolioData = async () => {
     setLoadingPortfolio(true);
     try {
       // 获取持仓
       const holdingsResponse = await fetch(`${API_BASE_URL}/api/data/holdings`, {
         method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ session_id: sid })
+        headers: getHeaders()
       });
       const holdingsData = await holdingsResponse.json();
       if (holdingsData.holdings && !holdingsData.error) {
@@ -325,8 +320,7 @@ function App() {
       // 获取关注列表
       const watchlistResponse = await fetch(`${API_BASE_URL}/api/data/watchlist`, {
         method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ session_id: sid })
+        headers: getHeaders()
       });
       const watchlistData = await watchlistResponse.json();
       if (watchlistData.watchlist && !watchlistData.error) {
@@ -341,7 +335,7 @@ function App() {
 
   // 一键分析持仓/关注列表股票
   const analyzePortfolio = async (symbols: string[]) => {
-    if (!sessionId || symbols.length === 0) return;
+    if (!hasLongBridgeCredentials || symbols.length === 0) return;
     
     setAnalyzingPortfolio(true);
     setError('');
@@ -696,7 +690,7 @@ ${peerComparison || '数据不足'}
 
   // 批量分析同板块股票
   const analyzeIndustryStocks = async (): Promise<any[]> => {
-    if (!sessionId || relatedStocks.length === 0) return [];
+    if (!hasLongBridgeCredentials || relatedStocks.length === 0) return [];
     
     const results = [];
     // 最多分析5只相关股票
