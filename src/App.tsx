@@ -351,7 +351,7 @@ function App() {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ 
-          session_id: sessionId, 
+           
           symbols: symbols,
           period: '1y'
         })
@@ -394,7 +394,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/api/analysis/comprehensive`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ session_id: sessionId, symbol, period })
+        body: JSON.stringify({  symbol, period })
       });
       
       const data = await response.json();
@@ -713,7 +713,7 @@ ${peerComparison || '数据不足'}
         const response = await fetch(`${API_BASE_URL}/api/analysis/comprehensive`, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({ session_id: sessionId, symbol: stock, period })
+          body: JSON.stringify({  symbol: stock, period })
         });
         
         if (response.ok) {

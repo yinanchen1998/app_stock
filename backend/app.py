@@ -139,8 +139,47 @@ def convert_to_native(obj):
     
     return obj
 
-# 全局配置存储
-user_configs = {}
+# ============== 长桥API连接管理（实时创建）==============
+
+user_configs = {}  # 保留兼容，但不再依赖
+
+def get_current_user_id():
+    """从请求头获取当前用户ID"""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else None
+    
+    if not token:
+        return None, "未登录"
+    
+    user = auth_service.validate_token(token)
+    if not user:
+        return None, "登录已过期"
+    
+    return user['user_id'], None
+
+def create_config_for_user(user_id: str):
+    """根据用户ID实时创建长桥API配置"""
+    if not user_id:
+        return None, "用户ID为空"
+    
+    creds = auth_service.get_longport_credentials(user_id)
+    if not creds:
+        return None, "未绑定长桥API凭证，请先绑定"
+    
+    try:
+        config = Config(
+            app_key=creds['api_key'],
+            app_secret=creds['api_secret'],
+            access_token=creds['access_token']
+        )
+        # 验证连接
+        ctx = QuoteContext(config)
+        ctx.quote(["AAPL.US"])
+        return config, None
+    except Exception as e:
+        return None, f"长桥API连接失败: {str(e)}"
+
+# ============== 以下是原代码 ==============
 
 # ============== 工具函数 ==============
 
@@ -956,12 +995,9 @@ def get_user_profile():
 @app.route('/api/auth/longport/bind', methods=['POST'])
 def bind_longport_credentials():
     """绑定LongBridge API凭证到用户账户"""
-    auth_header = request.headers.get('Authorization', '')
-    token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else None
-    
-    user = auth_service.validate_token(token)
-    if not user:
-        return jsonify({"success": False, "message": "请先登录"}), 401
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"success": False, "message": error}), 401
     
     data = request.json
     api_key = data.get('api_key')
@@ -972,48 +1008,27 @@ def bind_longport_credentials():
         return jsonify({"success": False, "message": "缺少必要参数"}), 400
     
     result = auth_service.bind_longport_credentials(
-        user['user_id'], api_key, api_secret, access_token
+        user_id, api_key, api_secret, access_token
     )
     return jsonify(result)
 
 @app.route('/api/auth/longport/connect', methods=['POST'])
 def connect_longport_with_saved_credentials():
-    """使用保存的LongBridge凭证自动连接"""
-    auth_header = request.headers.get('Authorization', '')
-    token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else None
+    """验证LongBridge凭证是否有效"""
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"success": False, "message": error}), 401
     
-    user = auth_service.validate_token(token)
-    if not user:
-        return jsonify({"success": False, "message": "请先登录"}), 401
+    # 实时创建连接验证
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"success": False, "message": error}), 400
     
-    credentials = auth_service.get_longport_credentials(user['user_id'])
-    if not credentials:
-        return jsonify({"success": False, "message": "未绑定LongBridge凭证"}), 400
-    
-    try:
-        # 使用保存的凭证创建配置
-        config = create_longport_config(
-            credentials['api_key'],
-            credentials['api_secret'],
-            credentials['access_token']
-        )
-        
-        # 验证连接
-        valid, message = validate_api_config(config)
-        if not valid:
-            return jsonify({"success": False, "message": f"无法连接到长桥API: {message}"}), 400
-        
-        # 保存配置并创建session
-        session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-        user_configs[session_id] = config
-        
-        return jsonify({
-            "success": True,
-            "message": "连接成功",
-            "session_id": session_id
-        })
-    except Exception as e:
-        return jsonify({"success": False, "message": f"连接失败: {str(e)}"}), 500
+    return jsonify({
+        "success": True,
+        "message": "连接有效",
+        "user_id": user_id
+    })
 
 # ============== 原API路由 ==============
 
@@ -1040,10 +1055,8 @@ def validate_auth():
         valid, message = validate_api_config(config)
         
         if valid:
-            # 存储配置
-            session_id = datetime.now().strftime('%Y%m%d%H%M%S')
-            user_configs[session_id] = config
-            return jsonify({"valid": True, "session_id": session_id})
+            # 不再存储配置到内存
+            return jsonify({"valid": True, "message": "API配置有效"})
         else:
             return jsonify({"valid": False, "error": message})
     except Exception as e:
@@ -1052,14 +1065,16 @@ def validate_auth():
 @app.route('/api/data/holdings', methods=['POST'])
 def get_holdings():
     """获取持仓"""
-    data = request.json
-    session_id = data.get('session_id')
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
     
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
     
     try:
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         holdings = agent.get_holdings()
         return jsonify({"holdings": holdings})
     except Exception as e:
@@ -1068,14 +1083,16 @@ def get_holdings():
 @app.route('/api/data/watchlist', methods=['POST'])
 def get_watchlist():
     """获取关注列表"""
-    data = request.json
-    session_id = data.get('session_id')
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
     
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
     
     try:
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         watchlist = agent.get_watchlist()
         return jsonify({"watchlist": watchlist})
     except Exception as e:
@@ -1093,7 +1110,7 @@ def get_historical():
         return jsonify({"error": "无效的会话ID"})
     
     try:
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         df = agent.get_historical_quotes(symbol, period)
         
         if df.empty:
@@ -1223,7 +1240,7 @@ def comprehensive_analysis():
     try:
         # 1. 获取数据
         print(f"[API] Creating DataAgent...", flush=True)
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         print(f"[API] Getting historical quotes for {symbol}, period={period}...", flush=True)
         df = agent.get_historical_quotes(symbol, period)
         print(f"[API] Got {len(df)} rows of data", flush=True)
@@ -1317,7 +1334,7 @@ def analyze_portfolio():
     errors = []
     
     try:
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         
         # 最多分析10只股票
         symbols_to_analyze = symbols[:10]
@@ -1427,7 +1444,7 @@ def get_chart_candles():
     try:
         from longport.openapi import AdjustType, Period
         
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         
         # 计算需要的K线数量
         # 日K：250个交易日/年
@@ -1516,7 +1533,7 @@ def get_intraday_data():
         from longport.openapi import AdjustType, Period
         from datetime import datetime, timedelta, time as dt_time
         
-        agent = DataAgent(user_configs[session_id])
+        agent = DataAgent(config)
         
         # 解析日期
         if date_str:
