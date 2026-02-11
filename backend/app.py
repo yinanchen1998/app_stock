@@ -419,7 +419,7 @@ class DataAgent:
             # 获取日K线数据
             from longport.openapi import AdjustType, Period
             print(f"[DEBUG] Calling candlesticks for {symbol}, count={total_days_needed}", flush=True)
-            resp = self.quote_ctx.candlesticks(symbol, Period.Day, total_days_needed, AdjustType.NoAdjust)
+            resp = self.quote_ctx.candlesticks(symbol, Period.Day, total_days_needed, AdjustType.ForwardAdjust)
             print(f"[DEBUG] candlesticks returned {len(resp) if resp else 0} candles", flush=True)
             
             data = []
@@ -1484,8 +1484,8 @@ def get_chart_candles():
         
         print(f"[API] Fetching {count} {timeframe} candles for {symbol}", flush=True)
         
-        # 获取K线数据
-        resp = agent.quote_ctx.candlesticks(symbol, period, count, AdjustType.NoAdjust)
+        # 获取K线数据 - 使用ForwardAdjust前复权，解决拆股除权价格不连续问题
+        resp = agent.quote_ctx.candlesticks(symbol, period, count, AdjustType.ForwardAdjust)
         
         candles = []
         for candle in resp:
@@ -1499,10 +1499,10 @@ def get_chart_candles():
                 "turnover": float(candle.turnover) if hasattr(candle, 'turnover') else 0.0
             })
         
-        # 获取实时行情用于判断交易时段
+        # 获取实时行情用于判断交易时段（失败不阻断）
+        realtime_data = None
         try:
             quote_resp = agent.quote_ctx.quote([symbol])
-            realtime_data = None
             if quote_resp and len(quote_resp) > 0:
                 q = quote_resp[0]
                 realtime_data = {
@@ -1513,8 +1513,17 @@ def get_chart_candles():
                     "trade_status": str(getattr(q, 'trade_status', ''))
                 }
         except Exception as e:
-            print(f"[API] 获取实时行情失败: {e}", flush=True)
-            realtime_data = None
+            print(f"[API] 获取实时行情失败（非阻断）: {e}", flush=True)
+            # 使用最后一条K线作为实时数据备选
+            if candles:
+                last = candles[-1]
+                realtime_data = {
+                    "last_price": last['close'],
+                    "change": 0,
+                    "change_percent": 0,
+                    "trade_session": "",
+                    "trade_status": ""
+                }
         
         print(f"[API] Returning {len(candles)} candles", flush=True)
         
@@ -1568,7 +1577,7 @@ def get_intraday_data():
         # 获取分钟级K线数据 - 获取足够覆盖全天+夜盘的数据
         # 美股：前一天20:00 到 当天20:00 覆盖夜盘+全天+盘后
         # 获取1分钟或5分钟数据，这里用5分钟减少数据量
-        resp = quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.NoAdjust)
+        resp = quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.ForwardAdjust)
         
         candles = []
         for candle in resp:
