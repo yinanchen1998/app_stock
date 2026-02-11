@@ -1598,9 +1598,30 @@ def get_intraday_data():
         # 获取分钟级K线数据 - 获取足够覆盖全天+夜盘的数据
         # 美股：前一天20:00 到 当天20:00 覆盖夜盘+全天+盘后
         # 获取1分钟或5分钟数据，这里用5分钟减少数据量
-        resp = quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.ForwardAdjust)
-        
+        # 添加重试机制处理临时API错误
         candles = []
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                resp = quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.ForwardAdjust)
+                break  # 成功，跳出重试循环
+            except Exception as e:
+                error_msg = str(e)
+                print(f"[API] 获取分时数据失败(尝试{attempt+1}/{max_retries}): {error_msg}", flush=True)
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(0.5)  # 短暂延迟后重试
+                else:
+                    # 最后一次尝试失败，返回空数据
+                    print(f"[API] 所有重试失败，返回空数据", flush=True)
+                    return jsonify({
+                        "symbol": symbol,
+                        "date": date_str,
+                        "candles": [],
+                        "session_stats": {},
+                        "warning": "数据获取失败，请稍后重试"
+                    })
+        
         for candle in resp:
             candle_time = candle.timestamp
             if isinstance(candle_time, str):

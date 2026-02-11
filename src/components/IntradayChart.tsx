@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -84,14 +84,31 @@ export function IntradayChart({ symbol }: IntradayChartProps) {
   const [error, setError] = useState('');
   const [debugInfo, setDebugInfo] = useState('');
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  
+  // 使用ref来跟踪当前请求，避免竞态条件
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentRequestRef = useRef<string>('');
 
   const token = localStorage.getItem('auth_token');
   
-  const fetchIntradayData = async () => {
+  const fetchIntradayData = useCallback(async () => {
     if (!symbol) {
       setDebugInfo(`Missing: symbol=${!!symbol}`);
       return;
     }
+    
+    // 取消之前的请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // 创建新的 AbortController
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    // 生成当前请求的唯一标识
+    const requestId = `${symbol}_${date}_${Date.now()}`;
+    currentRequestRef.current = requestId;
     
     setLoading(true);
     setError('');
@@ -107,30 +124,61 @@ export function IntradayChart({ symbol }: IntradayChartProps) {
         body: JSON.stringify({
           symbol,
           date
-        })
+        }),
+        signal: controller.signal
       });
       
+      // 如果请求被取消，不继续处理
+      if (controller.signal.aborted) {
+        return;
+      }
+      
       const data = await response.json();
+      
+      // 只处理最新请求的结果（避免竞态条件）
+      if (currentRequestRef.current !== requestId) {
+        console.log(`[IntradayChart] Ignoring stale response for ${requestId}`);
+        return;
+      }
+      
+      setCandles(data.candles || []);
+      setSessionStats(data.session_stats || {});
       
       if (data.error) {
         setError(data.error);
         setDebugInfo(`Error: ${data.error}`);
+      } else if (data.warning) {
+        setError(data.warning);
+        setDebugInfo(`Warning: ${data.warning}`);
       } else {
-        setCandles(data.candles || []);
-        setSessionStats(data.session_stats || {});
         setDebugInfo(`Loaded ${data.candles?.length || 0} intraday candles`);
       }
     } catch (err: any) {
+      // 忽略取消请求的错误
+      if (err.name === 'AbortError') {
+        console.log(`[IntradayChart] Request aborted for ${symbol}`);
+        return;
+      }
       setError(`获取分时数据失败: ${err.message}`);
       setDebugInfo(`Exception: ${err.message}`);
     } finally {
-      setLoading(false);
+      // 只有当前请求完成时才更新loading状态
+      if (currentRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  };
+  }, [symbol, date, token]);
 
   useEffect(() => {
     fetchIntradayData();
-  }, [symbol, date]);
+    
+    // 组件卸载时取消请求
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchIntradayData]);
 
   // 计算统计数据
   const stats = useMemo(() => {
