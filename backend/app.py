@@ -44,6 +44,22 @@ CORS(app)
 #
 # 方式2：直接修改下面代码（仅用于测试）
 
+# 初始化Redis连接（如果可用）
+redis_client = None
+try:
+    import redis
+    redis_client = redis.Redis(
+        host='localhost', 
+        port=6379, 
+        decode_responses=True,
+        socket_connect_timeout=5
+    )
+    redis_client.ping()
+    print("[INFO] Redis连接成功，验证码将持久化存储")
+except Exception as e:
+    print(f"[WARNING] Redis连接失败: {e}，使用内存存储（服务器重启后验证码会丢失）")
+    redis_client = None
+
 # 读取环境变量
 ALIYUN_ACCESS_KEY_ID = os.environ.get('ALIYUN_ACCESS_KEY_ID', '')
 ALIYUN_ACCESS_KEY_SECRET = os.environ.get('ALIYUN_ACCESS_KEY_SECRET', '')
@@ -59,12 +75,13 @@ if ALIYUN_ACCESS_KEY_ID and ALIYUN_ACCESS_KEY_SECRET:
     )
     auth_service = AuthService(
         sms,
+        redis_client=redis_client,
         sign_name=ALIYUN_SMS_SIGN_NAME,
         template_code=ALIYUN_SMS_TEMPLATE_CODE
     )
 else:
     print("[INFO] 阿里云SMS服务未配置，使用开发模式（验证码打印到控制台）")
-    auth_service = AuthService(sms_service=None)
+    auth_service = AuthService(sms_service=None, redis_client=redis_client)
 
 # 工具函数：转换 numpy 和 Decimal 类型为 Python 原生类型
 def convert_to_native(obj):
