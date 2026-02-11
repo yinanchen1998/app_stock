@@ -20,7 +20,6 @@ import { API_BASE_URL } from '@/config';
 
 interface IntradayChartProps {
   symbol: string;
-  sessionId: string;
 }
 
 interface IntradayData {
@@ -74,7 +73,7 @@ const sessionConfig: Record<string, {
 
 const sessionOrder = ['Night', 'PreMarket', 'Regular', 'AfterHours'];
 
-export function IntradayChart({ symbol, sessionId }: IntradayChartProps) {
+export function IntradayChart({ symbol }: IntradayChartProps) {
   const [date, setDate] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -86,9 +85,11 @@ export function IntradayChart({ symbol, sessionId }: IntradayChartProps) {
   const [debugInfo, setDebugInfo] = useState('');
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
 
+  const token = localStorage.getItem('auth_token');
+  
   const fetchIntradayData = async () => {
-    if (!sessionId || !symbol) {
-      setDebugInfo(`Missing: sessionId=${!!sessionId}, symbol=${!!symbol}`);
+    if (!symbol) {
+      setDebugInfo(`Missing: symbol=${!!symbol}`);
       return;
     }
     
@@ -99,9 +100,11 @@ export function IntradayChart({ symbol, sessionId }: IntradayChartProps) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/chart/intraday`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          session_id: sessionId,
           symbol,
           date
         })
@@ -127,7 +130,7 @@ export function IntradayChart({ symbol, sessionId }: IntradayChartProps) {
 
   useEffect(() => {
     fetchIntradayData();
-  }, [symbol, date, sessionId]);
+  }, [symbol, date]);
 
   // 计算统计数据
   const stats = useMemo(() => {

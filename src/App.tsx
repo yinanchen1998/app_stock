@@ -949,312 +949,6 @@ ${peerComparison || '数据不足'}
           </CardContent>
         </Card>
 
-        {/* 实时行情图表 - 输入股票后显示 */}
-        {isAuthenticated && symbol && (
-          <div className="mb-6 space-y-4">
-            {/* K线图表 */}
-            <StockChart 
-              symbol={symbol} 
-              sessionId={sessionId} 
-            />
-            
-            {/* 分时图表 */}
-            <div className="mt-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-5 h-5 text-blue-400" />
-                <h3 className="text-white font-medium">当日分时走势</h3>
-              </div>
-              <IntradayChart 
-                symbol={symbol} 
-                sessionId={sessionId} 
-              />
-            </div>
-          </div>
-        )}
-
-        {/* 错误提示 */}
-        {error && !showApiDialog && (
-          <Alert className="bg-red-900/50 border-red-700 mb-6">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-            <AlertDescription className="text-red-200">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* 快速图表预览 - 有股票代码时显示 */}
-        {isAuthenticated && symbol && !analysisResult && !loading && (
-          <div className="mb-6">
-            <StockChart 
-              symbol={symbol} 
-              sessionId={sessionId} 
-            />
-          </div>
-        )}
-
-        {/* 我的账户 - 认证成功后直接显示 */}
-        {isAuthenticated && (
-          <Card className="bg-slate-800/50 border-slate-700 mb-6">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-green-400" />
-                我的账户
-                {(holdings.length > 0 || watchlist.length > 0) && (
-                  <Badge className="ml-2 bg-green-500/20 text-green-400 text-xs">
-                    {holdings.length + watchlist.length}
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription className="text-slate-400">
-                从长桥账户同步的持仓和关注列表数据
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* 账户数据加载状态 */}
-              {loadingPortfolio && (
-                <div className="py-8 text-center">
-                  <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
-                  <p className="text-slate-400">正在获取账户数据...</p>
-                </div>
-              )}
-
-              {/* 持仓和关注列表切换 */}
-              {!loadingPortfolio && (holdings.length > 0 || watchlist.length > 0) && (
-                <>
-                  <div className="flex gap-2 mb-4">
-                    <Button
-                      variant={activePortfolioTab === 'holdings' ? 'default' : 'outline'}
-                      onClick={() => setActivePortfolioTab('holdings')}
-                      className={activePortfolioTab === 'holdings' ? 'bg-green-600 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}
-                    >
-                      <Building2 className="w-4 h-4 mr-2" />
-                      我的持仓 ({holdings.length})
-                    </Button>
-                    <Button
-                      variant={activePortfolioTab === 'watchlist' ? 'default' : 'outline'}
-                      onClick={() => setActivePortfolioTab('watchlist')}
-                      className={activePortfolioTab === 'watchlist' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}
-                    >
-                      <Search className="w-4 h-4 mr-2" />
-                      关注列表 ({watchlist.length})
-                    </Button>
-                  </div>
-
-                  {/* 持仓列表 */}
-                  {activePortfolioTab === 'holdings' && (
-                    <div className="space-y-4">
-                      {holdings.length === 0 ? (
-                        <div className="text-center py-8 text-slate-500">
-                          暂无持仓数据
-                        </div>
-                      ) : (
-                        <>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="text-slate-400 border-b border-slate-700">
-                                  <th className="text-left py-2">股票代码</th>
-                                  <th className="text-right py-2">持仓数量</th>
-                                  <th className="text-right py-2">成本价</th>
-                                  <th className="text-right py-2">最新价</th>
-                                  <th className="text-right py-2">市值</th>
-                                  <th className="text-right py-2">盈亏</th>
-                                  <th className="text-center py-2">操作</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {holdings.map((stock, idx) => (
-                                  <tr key={idx} className="border-b border-slate-700/50">
-                                    <td className="py-3 text-white font-medium">{stock.symbol}</td>
-                                    <td className="text-right py-3 text-slate-300">{stock.quantity}</td>
-                                    <td className="text-right py-3 text-slate-300">${stock.cost_price?.toFixed(2)}</td>
-                                    <td className="text-right py-3 text-slate-300">${stock.last_price?.toFixed(2)}</td>
-                                    <td className="text-right py-3 text-blue-400">${stock.market_value?.toFixed(0)}</td>
-                                    <td className={`text-right py-3 ${
-                                      (stock.unrealized_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                                    }`}>
-                                      {stock.unrealized_pnl >= 0 ? '+' : ''}{stock.unrealized_pnl?.toFixed(2)}
-                                      <span className="text-xs ml-1">
-                                        ({stock.unrealized_pnl_ratio >= 0 ? '+' : ''}{stock.unrealized_pnl_ratio?.toFixed(2)}%)
-                                      </span>
-                                    </td>
-                                    <td className="text-center py-3">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          setSymbol(stock.symbol);
-                                          runAnalysis();
-                                        }}
-                                        className="border-slate-600 text-xs"
-                                      >
-                                        分析
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          
-                          {/* 一键分析持仓 */}
-                          <div className="pt-4 border-t border-slate-700">
-                            <Button
-                              onClick={() => analyzePortfolio(holdings.map(h => h.symbol))}
-                              disabled={analyzingPortfolio || holdings.length === 0}
-                              className="w-full bg-green-600 hover:bg-green-700"
-                            >
-                              {analyzingPortfolio ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                  正在分析持仓股票...
-                                </>
-                              ) : (
-                                <>
-                                  <BarChart3 className="w-4 h-4 mr-2" />
-                                  一键分析所有持仓股票
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 关注列表 */}
-                  {activePortfolioTab === 'watchlist' && (
-                    <div className="space-y-4">
-                      {watchlist.length === 0 ? (
-                        <div className="text-center py-8 text-slate-500">
-                          暂无关注列表数据
-                        </div>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {watchlist.map((stock, idx) => (
-                              <div key={idx} className="p-3 bg-slate-700/30 rounded-lg flex items-center justify-between">
-                                <div>
-                                  <div className="text-white font-medium">{stock.symbol}</div>
-                                  <div className="text-xs text-slate-400">{stock.name}</div>
-                                </div>
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      setSymbol(stock.symbol);
-                                      runAnalysis();
-                                    }}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <BarChart3 className="w-4 h-4 text-blue-400" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          {/* 一键分析关注列表 */}
-                          <div className="pt-4 border-t border-slate-700">
-                            <Button
-                              onClick={() => analyzePortfolio(watchlist.map(w => w.symbol))}
-                              disabled={analyzingPortfolio || watchlist.length === 0}
-                              className="w-full bg-blue-600 hover:bg-blue-700"
-                            >
-                              {analyzingPortfolio ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                  正在分析关注股票...
-                                </>
-                              ) : (
-                                <>
-                                  <BarChart3 className="w-4 h-4 mr-2" />
-                                  一键分析关注列表
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 批量分析结果 */}
-                  {portfolioAnalysisResults.length > 0 && (
-                    <div className="mt-6 p-4 bg-slate-700/30 rounded-lg">
-                      <h4 className="text-white font-medium mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-purple-400" />
-                        批量分析结果
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-slate-400 border-b border-slate-700">
-                              <th className="text-left py-2">排名</th>
-                              <th className="text-left py-2">股票</th>
-                              <th className="text-right py-2">综合评分</th>
-                              <th className="text-right py-2">趋势评分</th>
-                              <th className="text-right py-2">风险评分</th>
-                              <th className="text-right py-2">当前价格</th>
-                              <th className="text-center py-2">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {portfolioAnalysisResults.map((result, idx) => (
-                              <tr key={idx} className="border-b border-slate-700/50">
-                                <td className="py-2">
-                                  {idx === 0 && <span className="text-yellow-400 font-bold">🥇</span>}
-                                  {idx === 1 && <span className="text-slate-300 font-bold">🥈</span>}
-                                  {idx === 2 && <span className="text-orange-400 font-bold">🥉</span>}
-                                  {idx > 2 && <span className="text-slate-500">{idx + 1}</span>}
-                                </td>
-                                <td className="py-2 text-white font-medium">{result.symbol}</td>
-                                <td className="text-right py-2">
-                                  <span className={`font-bold ${
-                                    result.composite_score >= 70 ? 'text-green-400' :
-                                    result.composite_score >= 50 ? 'text-yellow-400' : 'text-red-400'
-                                  }`}>
-                                    {result.composite_score?.toFixed(1)}
-                                  </span>
-                                </td>
-                                <td className="text-right py-2 text-blue-400">{result.trend_score?.toFixed(1)}</td>
-                                <td className="text-right py-2 text-purple-400">{result.risk_score?.toFixed(1)}</td>
-                                <td className="text-right py-2 text-slate-300">${result.latest_price?.toFixed(2)}</td>
-                                <td className="text-center py-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setSymbol(result.symbol);
-                                      runAnalysis();
-                                    }}
-                                    className="border-slate-600 text-xs"
-                                  >
-                                    详细分析
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* 无数据提示 */}
-              {!loadingPortfolio && holdings.length === 0 && watchlist.length === 0 && (
-                <div className="text-center py-8">
-                  <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">暂无账户数据</p>
-                  <p className="text-slate-500 text-sm mt-2">您的长桥账户暂无持仓或关注列表</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 分析结果 */}
         {analysisResult && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="bg-slate-800 border-slate-700">
@@ -1281,7 +975,7 @@ ${peerComparison || '数据不足'}
             </TabsList>
 
             {/* 总览页 */}
-            <TabsContent value="space-y-6">
+            <TabsContent value="overview" className="space-y-6">
               {/* 核心指标卡片 -->
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="bg-slate-800/50 border-slate-700">
@@ -1899,6 +1593,310 @@ ${peerComparison || '数据不足'}
               )}
             </TabsContent>
           </Tabs>
+        )}
+
+        {/* 实时行情图表 - 输入股票后显示 */}
+        {isAuthenticated && symbol && (
+          <div className="mb-6 space-y-4">
+            {/* K线图表 */}
+            <StockChart 
+              symbol={symbol} 
+              sessionId={sessionId} 
+            />
+            
+            {/* 分时图表 */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-5 h-5 text-blue-400" />
+                <h3 className="text-white font-medium">当日分时走势</h3>
+              </div>
+              <IntradayChart 
+                symbol={symbol} 
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 错误提示 */}
+        {error && !showApiDialog && (
+          <Alert className="bg-red-900/50 border-red-700 mb-6">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <AlertDescription className="text-red-200">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* 快速图表预览 - 有股票代码时显示 */}
+        {isAuthenticated && symbol && !analysisResult && !loading && (
+          <div className="mb-6">
+            <StockChart 
+              symbol={symbol} 
+              sessionId={sessionId} 
+            />
+          </div>
+        )}
+
+        {/* 我的账户 - 认证成功后直接显示 */}
+        {isAuthenticated && (
+          <Card className="bg-slate-800/50 border-slate-700 mb-6">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-green-400" />
+                我的账户
+                {(holdings.length > 0 || watchlist.length > 0) && (
+                  <Badge className="ml-2 bg-green-500/20 text-green-400 text-xs">
+                    {holdings.length + watchlist.length}
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-slate-400">
+                从长桥账户同步的持仓和关注列表数据
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* 账户数据加载状态 */}
+              {loadingPortfolio && (
+                <div className="py-8 text-center">
+                  <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
+                  <p className="text-slate-400">正在获取账户数据...</p>
+                </div>
+              )}
+
+              {/* 持仓和关注列表切换 */}
+              {!loadingPortfolio && (holdings.length > 0 || watchlist.length > 0) && (
+                <>
+                  <div className="flex gap-2 mb-4">
+                    <Button
+                      variant={activePortfolioTab === 'holdings' ? 'default' : 'outline'}
+                      onClick={() => setActivePortfolioTab('holdings')}
+                      className={activePortfolioTab === 'holdings' ? 'bg-green-600 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      我的持仓 ({holdings.length})
+                    </Button>
+                    <Button
+                      variant={activePortfolioTab === 'watchlist' ? 'default' : 'outline'}
+                      onClick={() => setActivePortfolioTab('watchlist')}
+                      className={activePortfolioTab === 'watchlist' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'}
+                    >
+                      <Search className="w-4 h-4 mr-2" />
+                      关注列表 ({watchlist.length})
+                    </Button>
+                  </div>
+
+                  {/* 持仓列表 */}
+                  {activePortfolioTab === 'holdings' && (
+                    <div className="space-y-4">
+                      {holdings.length === 0 ? (
+                        <div className="text-center py-8 text-slate-500">
+                          暂无持仓数据
+                        </div>
+                      ) : (
+                        <>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-slate-400 border-b border-slate-700">
+                                  <th className="text-left py-2">股票代码</th>
+                                  <th className="text-right py-2">持仓数量</th>
+                                  <th className="text-right py-2">成本价</th>
+                                  <th className="text-right py-2">最新价</th>
+                                  <th className="text-right py-2">市值</th>
+                                  <th className="text-right py-2">盈亏</th>
+                                  <th className="text-center py-2">操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {holdings.map((stock, idx) => (
+                                  <tr key={idx} className="border-b border-slate-700/50">
+                                    <td className="py-3 text-white font-medium">{stock.symbol}</td>
+                                    <td className="text-right py-3 text-slate-300">{stock.quantity}</td>
+                                    <td className="text-right py-3 text-slate-300">${stock.cost_price?.toFixed(2)}</td>
+                                    <td className="text-right py-3 text-slate-300">${stock.last_price?.toFixed(2)}</td>
+                                    <td className="text-right py-3 text-blue-400">${stock.market_value?.toFixed(0)}</td>
+                                    <td className={`text-right py-3 ${
+                                      (stock.unrealized_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                      {stock.unrealized_pnl >= 0 ? '+' : ''}{stock.unrealized_pnl?.toFixed(2)}
+                                      <span className="text-xs ml-1">
+                                        ({stock.unrealized_pnl_ratio >= 0 ? '+' : ''}{stock.unrealized_pnl_ratio?.toFixed(2)}%)
+                                      </span>
+                                    </td>
+                                    <td className="text-center py-3">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setSymbol(stock.symbol);
+                                          runAnalysis();
+                                        }}
+                                        className="border-slate-600 text-xs"
+                                      >
+                                        分析
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          
+                          {/* 一键分析持仓 */}
+                          <div className="pt-4 border-t border-slate-700">
+                            <Button
+                              onClick={() => analyzePortfolio(holdings.map(h => h.symbol))}
+                              disabled={analyzingPortfolio || holdings.length === 0}
+                              className="w-full bg-green-600 hover:bg-green-700"
+                            >
+                              {analyzingPortfolio ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                  正在分析持仓股票...
+                                </>
+                              ) : (
+                                <>
+                                  <BarChart3 className="w-4 h-4 mr-2" />
+                                  一键分析所有持仓股票
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 关注列表 */}
+                  {activePortfolioTab === 'watchlist' && (
+                    <div className="space-y-4">
+                      {watchlist.length === 0 ? (
+                        <div className="text-center py-8 text-slate-500">
+                          暂无关注列表数据
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {watchlist.map((stock, idx) => (
+                              <div key={idx} className="p-3 bg-slate-700/30 rounded-lg flex items-center justify-between">
+                                <div>
+                                  <div className="text-white font-medium">{stock.symbol}</div>
+                                  <div className="text-xs text-slate-400">{stock.name}</div>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setSymbol(stock.symbol);
+                                      runAnalysis();
+                                    }}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <BarChart3 className="w-4 h-4 text-blue-400" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* 一键分析关注列表 */}
+                          <div className="pt-4 border-t border-slate-700">
+                            <Button
+                              onClick={() => analyzePortfolio(watchlist.map(w => w.symbol))}
+                              disabled={analyzingPortfolio || watchlist.length === 0}
+                              className="w-full bg-blue-600 hover:bg-blue-700"
+                            >
+                              {analyzingPortfolio ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                  正在分析关注股票...
+                                </>
+                              ) : (
+                                <>
+                                  <BarChart3 className="w-4 h-4 mr-2" />
+                                  一键分析关注列表
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 批量分析结果 */}
+                  {portfolioAnalysisResults.length > 0 && (
+                    <div className="mt-6 p-4 bg-slate-700/30 rounded-lg">
+                      <h4 className="text-white font-medium mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-purple-400" />
+                        批量分析结果
+                      </h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-slate-400 border-b border-slate-700">
+                              <th className="text-left py-2">排名</th>
+                              <th className="text-left py-2">股票</th>
+                              <th className="text-right py-2">综合评分</th>
+                              <th className="text-right py-2">趋势评分</th>
+                              <th className="text-right py-2">风险评分</th>
+                              <th className="text-right py-2">当前价格</th>
+                              <th className="text-center py-2">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {portfolioAnalysisResults.map((result, idx) => (
+                              <tr key={idx} className="border-b border-slate-700/50">
+                                <td className="py-2">
+                                  {idx === 0 && <span className="text-yellow-400 font-bold">🥇</span>}
+                                  {idx === 1 && <span className="text-slate-300 font-bold">🥈</span>}
+                                  {idx === 2 && <span className="text-orange-400 font-bold">🥉</span>}
+                                  {idx > 2 && <span className="text-slate-500">{idx + 1}</span>}
+                                </td>
+                                <td className="py-2 text-white font-medium">{result.symbol}</td>
+                                <td className="text-right py-2">
+                                  <span className={`font-bold ${
+                                    result.composite_score >= 70 ? 'text-green-400' :
+                                    result.composite_score >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {result.composite_score?.toFixed(1)}
+                                  </span>
+                                </td>
+                                <td className="text-right py-2 text-blue-400">{result.trend_score?.toFixed(1)}</td>
+                                <td className="text-right py-2 text-purple-400">{result.risk_score?.toFixed(1)}</td>
+                                <td className="text-right py-2 text-slate-300">${result.latest_price?.toFixed(2)}</td>
+                                <td className="text-center py-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSymbol(result.symbol);
+                                      runAnalysis();
+                                    }}
+                                    className="border-slate-600 text-xs"
+                                  >
+                                    详细分析
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* 无数据提示 */}
+              {!loadingPortfolio && holdings.length === 0 && watchlist.length === 0 && (
+                <div className="text-center py-8">
+                  <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                  <p className="text-slate-400">暂无账户数据</p>
+                  <p className="text-slate-500 text-sm mt-2">您的长桥账户暂无持仓或关注列表</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* 空状态 */}
