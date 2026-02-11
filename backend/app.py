@@ -1519,21 +1519,26 @@ def get_chart_candles():
 def get_intraday_data():
     """获取当日/指定日期分时数据 - 支持盘前/盘中/盘后/夜盘"""
     print(f"[API] /api/chart/intraday called", flush=True)
+    
+    user_id, error = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": error}), 401
+    
+    config, error = create_config_for_user(user_id)
+    if not config:
+        return jsonify({"error": error}), 400
+    
     data = request.json
-    session_id = data.get('session_id')
     symbol = data.get('symbol')
     date_str = data.get('date')  # 可选，默认当日，格式：YYYY-MM-DD
     
-    print(f"[API] session_id={session_id}, symbol={symbol}, date={date_str}", flush=True)
-    
-    if session_id not in user_configs:
-        return jsonify({"error": "无效的会话ID"})
+    print(f"[API] user_id={user_id}, symbol={symbol}, date={date_str}", flush=True)
     
     try:
         from longport.openapi import AdjustType, Period
         from datetime import datetime, timedelta, time as dt_time
         
-        agent = DataAgent(config)
+        quote_ctx = QuoteContext(config)
         
         # 解析日期
         if date_str:
@@ -1546,7 +1551,7 @@ def get_intraday_data():
         # 获取分钟级K线数据 - 获取足够覆盖全天+夜盘的数据
         # 美股：前一天20:00 到 当天20:00 覆盖夜盘+全天+盘后
         # 获取1分钟或5分钟数据，这里用5分钟减少数据量
-        resp = agent.quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.NoAdjust)
+        resp = quote_ctx.candlesticks(symbol, Period.Min_5, 400, AdjustType.NoAdjust)
         
         candles = []
         for candle in resp:
@@ -1556,6 +1561,10 @@ def get_intraday_data():
             
             # 只保留查询日期当天的数据（考虑夜盘跨天）
             candle_date = candle_time.date() if hasattr(candle_time, 'date') else query_date
+            
+            # 过滤：只保留查询日期的数据
+            if candle_date != query_date:
+                continue
             
             # 判断交易时段
             hour = candle_time.hour if hasattr(candle_time, 'hour') else 0
