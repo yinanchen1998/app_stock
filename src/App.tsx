@@ -1030,6 +1030,96 @@ ${peerComparison || '数据不足'}
                 </Card>
               </div>
 
+              {/* 投资建议 - 基于综合分析 */}
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-400" />
+                    投资建议
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const { summary, backtest_results } = analysisResult;
+                    const isBullish = summary.trend_signal === 'bullish';
+                    const goodSharpe = backtest_results?.sharpe_ratio > 0.5;
+                    const goodWinRate = backtest_results?.win_rate > 50;
+                    const positiveReturn = backtest_results?.total_return > 0;
+                    const highScore = summary.technical_score >= 60;
+                    const lowVol = summary.volatility_level !== 'high';
+                    
+                    // 计算得分
+                    let score = 0;
+                    if (isBullish) score += 25;
+                    if (goodSharpe) score += 20;
+                    if (goodWinRate) score += 15;
+                    if (positiveReturn) score += 20;
+                    if (highScore) score += 15;
+                    if (lowVol) score += 5;
+                    
+                    // 确定建议
+                    let recommendation = { text: '观望', color: 'text-yellow-400', bgColor: 'bg-yellow-400/10', borderColor: 'border-yellow-400/30', desc: '信号不明确，建议等待更明确的入场时机' };
+                    if (score >= 80) {
+                      recommendation = { text: '强烈买入', color: 'text-green-400', bgColor: 'bg-green-400/10', borderColor: 'border-green-400/30', desc: '多重信号共振，回测表现优秀，建议积极配置' };
+                    } else if (score >= 60) {
+                      recommendation = { text: '买入', color: 'text-green-300', bgColor: 'bg-green-400/10', borderColor: 'border-green-400/30', desc: '趋势向好，技术评分良好，可适度参与' };
+                    } else if (score <= 30) {
+                      recommendation = { text: '回避', color: 'text-red-400', bgColor: 'bg-red-400/10', borderColor: 'border-red-400/30', desc: '趋势偏弱，风险较高，建议观望或减仓' };
+                    } else if (score <= 50) {
+                      recommendation = { text: '谨慎', color: 'text-orange-400', bgColor: 'bg-orange-400/10', borderColor: 'border-orange-400/30', desc: '信号混杂，建议控制仓位，谨慎参与' };
+                    }
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className={`p-4 rounded-lg border ${recommendation.bgColor} ${recommendation.borderColor}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-400">综合评分</span>
+                            <span className="text-2xl font-bold text-white">{score}/100</span>
+                          </div>
+                          <div className="w-full bg-slate-700 rounded-full h-3 mb-4">
+                            <div 
+                              className={`h-3 rounded-full transition-all ${score >= 60 ? 'bg-green-400' : score <= 40 ? 'bg-red-400' : 'bg-yellow-400'}`}
+                              style={{ width: `${score}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-3xl font-bold ${recommendation.color}`}>{recommendation.text}</span>
+                          </div>
+                          <p className="text-slate-300 mt-2 text-sm">{recommendation.desc}</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                          <div className={`p-2 rounded ${isBullish ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
+                            <div className="text-xs text-slate-400">趋势</div>
+                            <div className="font-medium">{isBullish ? '✓ 看涨' : '✗ 看跌'}</div>
+                          </div>
+                          <div className={`p-2 rounded ${goodSharpe ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
+                            <div className="text-xs text-slate-400">夏普比率</div>
+                            <div className="font-medium">{goodSharpe ? '✓ 优秀' : '✗ 偏低'}</div>
+                          </div>
+                          <div className={`p-2 rounded ${positiveReturn ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
+                            <div className="text-xs text-slate-400">回测收益</div>
+                            <div className="font-medium">{positiveReturn ? '✓ 正收益' : '✗ 负收益'}</div>
+                          </div>
+                          <div className={`p-2 rounded ${goodWinRate ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400'}`}>
+                            <div className="text-xs text-slate-400">胜率</div>
+                            <div className="font-medium">{goodWinRate ? '✓ 较高' : '△ 一般'}</div>
+                          </div>
+                          <div className={`p-2 rounded ${highScore ? 'bg-green-400/10 text-green-400' : 'bg-yellow-400/10 text-yellow-400'}`}>
+                            <div className="text-xs text-slate-400">技术评分</div>
+                            <div className="font-medium">{highScore ? '✓ 良好' : '△ 一般'}</div>
+                          </div>
+                          <div className={`p-2 rounded ${lowVol ? 'bg-green-400/10 text-green-400' : 'bg-orange-400/10 text-orange-400'}`}>
+                            <div className="text-xs text-slate-400">波动率</div>
+                            <div className="font-medium">{lowVol ? '✓ 适中' : '⚠ 较高'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
               {/* 回测摘要 */}
               {analysisResult.backtest_results && !('error' in analysisResult.backtest_results) && (
                 <Card className="bg-slate-800/50 border-slate-700">
