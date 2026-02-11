@@ -100,22 +100,28 @@ export function StockChart({ symbol }: StockChartProps) {
       
       const data = await response.json();
       
+      // 处理数据，添加格式化日期
+      const processedData = (data.candles || []).map((c: any) => ({
+        ...c,
+        date: new Date(c.timestamp).toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }),
+        isUp: c.close >= c.open
+      }));
+      setCandles(processedData);
+      setRealtime(data.realtime);
+      
       if (data.error) {
+        // API返回错误但HTTP状态码为200的情况
         setError(data.error);
         setDebugInfo(`Error: ${data.error}`);
+      } else if (data.warning) {
+        // 有警告但数据为空的情况
+        setError(data.warning);
+        setDebugInfo(`Warning: ${data.warning}`);
       } else {
-        // 处理数据，添加格式化日期
-        const processedData = (data.candles || []).map((c: any) => ({
-          ...c,
-          date: new Date(c.timestamp).toLocaleDateString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          }),
-          isUp: c.close >= c.open
-        }));
-        setCandles(processedData);
-        setRealtime(data.realtime);
         setDebugInfo(`Loaded ${processedData.length} candles`);
       }
     } catch (err: any) {

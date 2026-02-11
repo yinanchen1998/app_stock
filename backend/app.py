@@ -1485,19 +1485,40 @@ def get_chart_candles():
         print(f"[API] Fetching {count} {timeframe} candles for {symbol}", flush=True)
         
         # 获取K线数据 - 使用ForwardAdjust前复权，解决拆股除权价格不连续问题
-        resp = agent.quote_ctx.candlesticks(symbol, period, count, AdjustType.ForwardAdjust)
-        
+        # 添加重试机制处理临时API错误
         candles = []
-        for candle in resp:
-            candles.append({
-                "timestamp": candle.timestamp.isoformat() if hasattr(candle.timestamp, 'isoformat') else str(candle.timestamp),
-                "open": float(candle.open),
-                "high": float(candle.high),
-                "low": float(candle.low),
-                "close": float(candle.close),
-                "volume": int(candle.volume),
-                "turnover": float(candle.turnover) if hasattr(candle, 'turnover') else 0.0
-            })
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                resp = agent.quote_ctx.candlesticks(symbol, period, count, AdjustType.ForwardAdjust)
+                for candle in resp:
+                    candles.append({
+                        "timestamp": candle.timestamp.isoformat() if hasattr(candle.timestamp, 'isoformat') else str(candle.timestamp),
+                        "open": float(candle.open),
+                        "high": float(candle.high),
+                        "low": float(candle.low),
+                        "close": float(candle.close),
+                        "volume": int(candle.volume),
+                        "turnover": float(candle.turnover) if hasattr(candle, 'turnover') else 0.0
+                    })
+                break  # 成功，跳出重试循环
+            except Exception as e:
+                error_msg = str(e)
+                print(f"[API] 获取K线失败(尝试{attempt+1}/{max_retries}): {error_msg}", flush=True)
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(0.5)  # 短暂延迟后重试
+                else:
+                    # 最后一次尝试失败，返回空数据
+                    print(f"[API] 所有重试失败，返回空数据", flush=True)
+                    return jsonify({
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "candles": [],
+                        "realtime": None,
+                        "total": 0,
+                        "warning": "数据获取失败，请稍后重试"
+                    })
         
         # 获取实时行情用于判断交易时段（失败不阻断）
         realtime_data = None
