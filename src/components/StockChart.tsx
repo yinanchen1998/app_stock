@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -70,15 +70,32 @@ export function StockChart({ symbol }: StockChartProps) {
   const [realtime, setRealtime] = useState<RealtimeData | null>(null);
   const [error, setError] = useState('');
   const [debugInfo, setDebugInfo] = useState('');
+  
+  // 使用ref来跟踪当前请求，避免竞态条件
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentRequestRef = useRef<string>('');
 
   const token = localStorage.getItem('auth_token');
 
   // 获取数据
-  const fetchChartData = async () => {
+  const fetchChartData = useCallback(async () => {
     if (!symbol) {
       setDebugInfo(`Missing: symbol=${!!symbol}`);
       return;
     }
+    
+    // 取消之前的请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // 创建新的 AbortController
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    // 生成当前请求的唯一标识
+    const requestId = `${symbol}_${timeframe}_${Date.now()}`;
+    currentRequestRef.current = requestId;
     
     setLoading(true);
     setError('');
@@ -95,10 +112,22 @@ export function StockChart({ symbol }: StockChartProps) {
           symbol,
           timeframe,
           years: 3
-        })
+        }),
+        signal: controller.signal
       });
       
+      // 如果请求被取消，不继续处理
+      if (controller.signal.aborted) {
+        return;
+      }
+      
       const data = await response.json();
+      
+      // 只处理最新请求的结果（避免竞态条件）
+      if (currentRequestRef.current !== requestId) {
+        console.log(`[StockChart] Ignoring stale response for ${requestId}`);
+        return;
+      }
       
       // 处理数据，添加格式化日期
       const processedData = (data.candles || []).map((c: any) => ({
@@ -125,17 +154,32 @@ export function StockChart({ symbol }: StockChartProps) {
         setDebugInfo(`Loaded ${processedData.length} candles`);
       }
     } catch (err: any) {
+      // 忽略取消请求的错误
+      if (err.name === 'AbortError') {
+        console.log(`[StockChart] Request aborted for ${symbol}`);
+        return;
+      }
       setError(`获取图表数据失败: ${err.message}`);
       setDebugInfo(`Exception: ${err.message}`);
     } finally {
-      setLoading(false);
+      // 只有当前请求完成时才更新loading状态
+      if (currentRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  };
+  }, [symbol, timeframe, token]);
 
   // 当symbol或timeframe变化时获取数据
   useEffect(() => {
     fetchChartData();
-  }, [symbol, timeframe]);
+    
+    // 组件卸载时取消请求
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchChartData]);
 
   // 计算统计数据
   const stats = useMemo(() => {
