@@ -381,12 +381,6 @@ function App() {
       return;
     }
     
-    if (!sessionId) {
-      setError('服务连接异常，请重新绑定API凭证');
-      setShowApiDialog(true);
-      return;
-    }
-    
     setLoading(true);
     setError('');
     
@@ -394,7 +388,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/api/analysis/comprehensive`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({  symbol, period })
+        body: JSON.stringify({ symbol, period })
       });
       
       const data = await response.json();
@@ -713,7 +707,7 @@ ${peerComparison || '数据不足'}
         const response = await fetch(`${API_BASE_URL}/api/analysis/comprehensive`, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({  symbol: stock, period })
+          body: JSON.stringify({ symbol: stock, period })
         });
         
         if (response.ok) {
