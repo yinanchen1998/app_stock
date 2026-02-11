@@ -19,7 +19,6 @@ import { API_BASE_URL } from '@/config';
 
 interface StockChartProps {
   symbol: string;
-  sessionId: string;
 }
 
 type TimeFrame = 'day' | 'week' | 'month';
@@ -63,7 +62,7 @@ const sessionLabels: Record<string, { label: string; color: string }> = {
   'Night': { label: '夜盘', color: 'bg-purple-500' }
 };
 
-export function StockChart({ symbol, sessionId }: StockChartProps) {
+export function StockChart({ symbol }: StockChartProps) {
   const [timeframe, setTimeframe] = useState<TimeFrame>('day');
   const [chartType, setChartType] = useState<ChartType>('line');
   const [loading, setLoading] = useState(false);
@@ -72,10 +71,12 @@ export function StockChart({ symbol, sessionId }: StockChartProps) {
   const [error, setError] = useState('');
   const [debugInfo, setDebugInfo] = useState('');
 
+  const token = localStorage.getItem('auth_token');
+
   // 获取数据
   const fetchChartData = async () => {
-    if (!sessionId || !symbol) {
-      setDebugInfo(`Missing: sessionId=${!!sessionId}, symbol=${!!symbol}`);
+    if (!symbol) {
+      setDebugInfo(`Missing: symbol=${!!symbol}`);
       return;
     }
     
@@ -86,9 +87,11 @@ export function StockChart({ symbol, sessionId }: StockChartProps) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/chart/candles`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          session_id: sessionId,
           symbol,
           timeframe,
           years: 3
@@ -126,7 +129,7 @@ export function StockChart({ symbol, sessionId }: StockChartProps) {
   // 当symbol或timeframe变化时获取数据
   useEffect(() => {
     fetchChartData();
-  }, [symbol, timeframe, sessionId]);
+  }, [symbol, timeframe]);
 
   // 计算统计数据
   const stats = useMemo(() => {

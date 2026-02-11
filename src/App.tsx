@@ -1601,7 +1601,6 @@ ${peerComparison || '数据不足'}
             {/* K线图表 */}
             <StockChart 
               symbol={symbol} 
-              sessionId={sessionId} 
             />
             
             {/* 分时图表 */}
@@ -1630,7 +1629,6 @@ ${peerComparison || '数据不足'}
           <div className="mb-6">
             <StockChart 
               symbol={symbol} 
-              sessionId={sessionId} 
             />
           </div>
         )}
